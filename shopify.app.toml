@@ -3,7 +3,7 @@
 client_id = "0c1e724b4eade67b09b7bf93486410f5"
 name = "tensor-search"
 handle = "tensor-search"
-application_url = "https://faces-default-book-finding.trycloudflare.com"
+application_url = "https://manual-mississippi-vendor-technique.trycloudflare.com"
 embedded = true
 
 [build]
@@ -22,7 +22,7 @@ api_version = "2025-04"
   uri = "/webhooks/app/scopes_update"
 
 [auth]
-redirect_urls = ["https://faces-default-book-finding.trycloudflare.com/auth/callback", "https://faces-default-book-finding.trycloudflare.com/auth/shopify/callback", "https://faces-default-book-finding.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://manual-mississippi-vendor-technique.trycloudflare.com/auth/callback", "https://manual-mississippi-vendor-technique.trycloudflare.com/auth/shopify/callback", "https://manual-mississippi-vendor-technique.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

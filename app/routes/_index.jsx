@@ -1,13 +1,20 @@
-import { json } from "@remix-run/node";
-import { useLoaderData, useSubmit } from "@remix-run/react";
+import { useLoaderData, useActionData, useNavigation } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
+import axios from "axios";
 
-export const loader = async ({ request }) => {
+export async function loader({ request }) {
   await authenticate.admin(request);
-  return json({});
+  return new Response(JSON.stringify({}), {
+    headers: { "Content-Type": "application/json" }
+  });
 };
 
-export const action = async ({ request }) => {
+export async function action({ request }) {
+  // Ensure it's a POST request
+  if (request.method !== "POST") {
+    throw new Response("Method not allowed", { status: 405 });
+  }
+
   const { admin, session } = await authenticate.admin(request);
   
   try {
@@ -25,95 +32,96 @@ export const action = async ({ request }) => {
           query getProducts($first: Int!, $after: String) {
             products(first: $first, after: $after) {
               pageInfo {
-                hasNextPage
-                endCursor
+          hasNextPage
+          endCursor
               }
               edges {
+          node {
+            id
+            title
+            handle
+            description
+            descriptionHtml
+            status
+            createdAt
+            updatedAt
+            publishedAt
+            productType
+            vendor
+            tags
+            totalInventory
+            tracksInventory
+            onlineStoreUrl
+            seo {
+              title
+              description
+            }
+            options {
+              id
+              name
+              values
+            }
+            variants(first: 100) {
+              edges {
                 node {
-                  id
-                  title
-                  handle
-                  description
-                  descriptionHtml
-                  status
-                  createdAt
-                  updatedAt
-                  publishedAt
-                  productType
-                  vendor
-                  tags
-                  totalInventory
-                  tracksInventory
-                  onlineStoreUrl
-                  seo {
-                    title
-                    description
-                  }
-                  options {
-                    id
-                    name
-                    values
-                  }
-                  variants(first: 100) {
-                    edges {
-                      node {
-                        id
-                        title
-                        price
-                        compareAtPrice
-                        sku
-                        barcode
-                        inventoryQuantity
-                        weight
-                        weightUnit
-                        requiresShipping
-                        taxable
-                        inventoryPolicy
-                        inventoryManagement
-                        availableForSale
-                        selectedOptions {
-                          name
-                          value
-                        }
-                        image {
-                          url
-                          altText
-                        }
-                      }
-                    }
-                  }
-                  images(first: 20) {
-                    edges {
-                      node {
-                        id
-                        url
-                        altText
-                        width
-                        height
-                      }
-                    }
-                  }
-                  collections(first: 10) {
-                    edges {
-                      node {
-                        id
-                        title
-                        handle
-                      }
-                    }
-                  }
-                  metafields(first: 50) {
-                    edges {
-                      node {
-                        id
-                        namespace
-                        key
-                        value
-                        type
-                      }
-                    }
-                  }
+            id
+            title
+            price
+            compareAtPrice
+            sku
+            barcode
+            inventoryQuantity
+            taxable
+            inventoryPolicy
+            availableForSale
+            selectedOptions {
+              name
+              value
+            }
+            image {
+              url
+              altText
+            }
                 }
+              }
+            }
+            media(first: 20) {
+              edges {
+                node {
+            ... on MediaImage {
+              id
+              image {
+                url
+                altText
+                width
+                height
+              }
+              mediaContentType
+            }
+                }
+              }
+            }
+            collections(first: 10) {
+              edges {
+                node {
+            id
+            title
+            handle
+                }
+              }
+            }
+            metafields(first: 50) {
+              edges {
+                node {
+            id
+            namespace
+            key
+            value
+            type
+                }
+              }
+            }
+          }
               }
             }
           }`;
@@ -154,44 +162,73 @@ export const action = async ({ request }) => {
 
     console.log(`Sending data for shop: ${shopDomain}`);
 
-    AXIOS
+    // Call your external API using Axios
+    const apiResponse = await axios.post(
+      'https://7847-183-82-160-126.ngrok-free.app/api/v1/sync-shopify-data',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 30000, // 30 second timeout
+      }
+    );
 
-    // Call your external API
-    const apiResponse = await fetch('https://b128-183-82-162-161.ngrok-free.app/api/v1/sync-shopify-data', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!apiResponse.ok) {
-      throw new Error(`API request failed: ${apiResponse.status} ${apiResponse.statusText}`);
-    }
-
-    const apiResult = await apiResponse.json();
-
-    return json({ 
+    return new Response(JSON.stringify({ 
       success: true, 
       message: `Processed ${products.length} products from ${shopDomain} successfully`,
       shopDomain: shopDomain,
       productCount: products.length,
-      apiResult: apiResult 
+      apiResult: apiResponse.data 
+    }), {
+      headers: { "Content-Type": "application/json" }
     });
 
   } catch (error) {
     console.error('Error:', error);
-    return json({ 
-      success: false, 
-      message: 'Error processing products: ' + error.message 
-    });
+    
+    // Handle Axios specific errors
+    if (error.response) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: `API request failed: ${error.response.status} - ${error.response.statusText}`,
+        details: error.response.data
+      }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    } else if (error.request) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: 'Network error: Unable to reach the API server'
+      }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    } else {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        message: 'Error processing products: ' + error.message 
+      }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
   }
 };
 
 export default function Index() {
   const data = useLoaderData();
-  const submit = useSubmit();
+  const actionData = useActionData(); // Get action result data
+  const navigation = useNavigation(); // Get navigation state
+  
+  const isLoading = navigation.state === "submitting";
 
   const handleButtonClick = () => {
     console.log("Button clicked, starting process...");
-    submit({}, { method: "post" });
+    // Using a form instead of submit for better UX
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+    document.body.appendChild(form);
+    form.submit();
   };
 
   return (
@@ -219,6 +256,81 @@ export default function Index() {
 
       {/* Main Content */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '40px 20px' }}>
+        
+        {/* Status Messages */}
+        {actionData && (
+          <div style={{
+            backgroundColor: actionData.success ? '#d1fae5' : '#fef2f2',
+            border: `1px solid ${actionData.success ? '#10b981' : '#ef4444'}`,
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '24px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{
+                fontSize: '20px'
+              }}>
+                {actionData.success ? '✅' : '❌'}
+              </span>
+              <div>
+                <h3 style={{
+                  margin: '0 0 4px 0',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: actionData.success ? '#065f46' : '#991b1b'
+                }}>
+                  {actionData.success ? 'Sync Successful!' : 'Sync Failed'}
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: actionData.success ? '#047857' : '#dc2626'
+                }}>
+                  {actionData.message}
+                </p>
+                {actionData.success && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '14px',
+                    color: '#047857'
+                  }}>
+                    <p style={{ margin: '0 0 4px 0' }}>
+                      <strong>Shop:</strong> {actionData.shopDomain}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Products synced:</strong> {actionData.productCount}
+                    </p>
+                  </div>
+                )}
+                {actionData.details && (
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ 
+                      cursor: 'pointer', 
+                      fontSize: '14px',
+                      color: '#dc2626'
+                    }}>
+                      View error details
+                    </summary>
+                    <pre style={{
+                      backgroundColor: '#f3f4f6',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      marginTop: '8px',
+                      overflow: 'auto'
+                    }}>
+                      {JSON.stringify(actionData.details, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* API Documentation Section */}
         <div style={{
@@ -464,26 +576,70 @@ export default function Index() {
             Sync all products from your Shopify store to enable search functionality
           </p>
           
-          <button 
-            onClick={handleButtonClick}
-            style={{
-              padding: '12px 24px',
-              fontSize: '14px',
-              fontWeight: '500',
-              backgroundColor: '#2563eb',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#1d4ed8'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = '#2563eb'}
-          >
-            Sync Products
-          </button>
+          <form method="post" action="/?index" style={{ display: 'inline-block' }}>
+            <button 
+              type="submit"
+              disabled={isLoading}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '500',
+                backgroundColor: isLoading ? '#9ca3af' : '#2563eb',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'background-color 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading) {
+                  e.target.style.backgroundColor = '#1d4ed8';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoading) {
+                  e.target.style.backgroundColor = '#2563eb';
+                }
+              }}
+            >
+              {isLoading && (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #ffffff',
+                  borderTop: '2px solid transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+              )}
+              {isLoading ? 'Syncing...' : 'Sync Products'}
+            </button>
+          </form>
+          
+          {isLoading && (
+            <p style={{
+              marginTop: '16px',
+              color: '#6b7280',
+              fontSize: '14px'
+            }}>
+              Please wait while we sync your products. This may take a few moments...
+            </p>
+          )}
         </div>
       </div>
+      
+      {/* Add CSS animation for loading spinner */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `
+      }} />
     </div>
   );
 }
