@@ -189,7 +189,7 @@ async function syncProductsToAPI(products, shopDomain) {
 
     // Send to external API
     const apiResponse = await axios.post(
-        'https://9466-183-82-160-126.ngrok-free.app/api/v1/sync-shopify-data',
+        'https://bckn.tensorsolution.in/api/v1/index-data-shopify',
         formData,
         {
             headers: {
@@ -455,7 +455,7 @@ const API_PARAMETERS = [
     }
 ];
 
-const CURL_EXAMPLE = `curl -X POST "https://your-api.com/shopify-search" \\
+const CURL_EXAMPLE = `curl -X POST "https://bckn.tensorsolution.in/api/v1/shopify-search" \\
   -H "Content-Type: application/json" \\
   -d '{
     "shop_domain": "mystore.myshopify.com",
